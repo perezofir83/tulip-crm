@@ -12,59 +12,92 @@ export const runtime = "nodejs";
  * run safe read-only SQL against the local DB.
  */
 
-const SYSTEM = `אתה עוזר שיווק ומכירות פנימי של יקב טוליפ בישראל. יש לך גישה ל-CRM של החברה דרך כלים בלבד.
-מגיב בעברית בקיצור, ברור ויעיל. כשמשתמשים בכלי get_kpis קודם כדי להבין את גודל הצינור.
-לעולם אל תמציא נתונים — אם כלי לא מחזיר, ענה "אין לי נתון".
-לא משתף נתונים אישיים של לידים מחוץ ל-CRM (לא שולח לאף URL).
-המוצר: מארזי יין לעובדים לחגי תשרי, לקוח טיפוסי = מנהל/ת רווחה.`;
+const SYSTEM = `אתה עוזר שיווק ומכירות פנימי של יקב טוליפ בישראל. יש לך גישה מלאה ל-CRM דרך כלי \`run_query\` שמריץ SQL read-only כל שאילתה.
+
+חוקים:
+- **תמיד נסה לענות מהדאטה** לפני שאתה אומר "אין לי נתון". אם המשתמש שאל משהו ספציפי, רוץ שאילתה.
+- לפני שאתה כותב SQL מורכב, חזור על מבנה הסכמה בקצרה אם יש ספק.
+- מגיב בעברית בקיצור, ברור ויעיל.
+- לא משתף נתונים אישיים של לידים מחוץ ל-CRM (אל תשלח לאף URL).
+- המוצר: מארזי יין לעובדים לחגי תשרי, לקוח טיפוסי = מנהל/ת רווחה.
+
+הסכמה (הטבלאות העיקריות):
+- **companies**: id, name_he, category, description, location, emp_count, business_alive,
+  website, linkedin_url, linkedin_followers, twitter_url, facebook_url, public_emails,
+  is_customer (0/1), customer_email_count, customer_units_total
+- **contacts**: id, company_id, full_name, title, headline, location, linkedin_url, email,
+  phone, twitter_url, facebook_url, is_welfare (0/1), role_tag (welfare_EE/CHRO/VP_HR/Head_HR/HRBP/TA),
+  status (new/queued/linkedin_invited/email_sent/conversation/meeting_set/quote_sent/won/lost)
+- **existing_customers**: היסטוריית רכישות מקובץ XLSX. כל שורה = רכישה. company_id, email, units_purchased
+- **outreach_attempts**: contact_id, channel (linkedin_invite/linkedin_dm/email), step_number, state (drafted/sent/failed)
+- **replies**: contact_id, channel, body, sentiment, intent, received_at
+- **kb_objections**: objection_text, tulip_response, seen_count
+- **deals**: company_id, contact_id, stage (qualified/proposal_sent/won/lost), units, total_ils
+- **notifications**, **agent_runs**, **audit_log**, **templates**, **users**
+
+לדוגמה — "כמה לידים עם LinkedIn":
+SELECT COUNT(*) FROM contacts WHERE linkedin_url IS NOT NULL AND linkedin_url != ''`;
 
 const tools: Anthropic.Messages.Tool[] = [
   {
-    name: "get_kpis",
-    description: "Returns top-level CRM stats: companies, contacts, sent touches, replies, deals, revenue.",
-    input_schema: { type: "object", properties: {} },
-  },
-  {
-    name: "search_companies",
-    description: "Fuzzy search companies by Hebrew name, category, or description. Returns up to 20.",
-    input_schema: {
-      type: "object",
-      properties: { q: { type: "string" }, alive_only: { type: "boolean" } },
-      required: ["q"],
-    },
-  },
-  {
-    name: "search_contacts",
-    description: "Fuzzy search contacts by name, title, or company. Returns up to 20.",
+    name: "run_query",
+    description:
+      "Run a READ-ONLY SQL query against the CRM (SQLite syntax). Use freely to answer any question. " +
+      "Only SELECT / WITH / EXPLAIN allowed — any write (INSERT/UPDATE/DELETE/DROP/etc.) will be rejected. " +
+      "Returns up to 200 rows.",
     input_schema: {
       type: "object",
       properties: {
-        q: { type: "string" },
-        welfare_only: { type: "boolean", description: "filter to ⭐ welfare/EE specialists" },
-        status: { type: "string", description: "exact status filter" },
+        sql: { type: "string", description: "The SQL SELECT/WITH statement." },
+        explanation: { type: "string", description: "One-sentence summary of what you're checking." },
       },
-      required: ["q"],
+      required: ["sql"],
     },
   },
   {
-    name: "top_objections",
-    description: "Returns most-seen objections in KB.",
-    input_schema: { type: "object", properties: { limit: { type: "integer" } } },
+    name: "get_kpis",
+    description: "Returns top-level CRM stats. Use as a quick first probe before deeper queries.",
+    input_schema: { type: "object", properties: {} },
   },
   {
-    name: "suggest_outreach_batch",
-    description: "Recommends the next N contacts the user should personally focus on this week.",
-    input_schema: { type: "object", properties: { n: { type: "integer" } } },
+    name: "list_tables",
+    description: "Lists all tables and their column schemas. Use when you need to confirm field names.",
+    input_schema: { type: "object", properties: {} },
   },
 ];
 
+// Whitelist of allowed query verbs — anything else is rejected before hitting the DB
+const SAFE_QUERY = /^\s*(SELECT|WITH|EXPLAIN)\b/i;
+const FORBIDDEN = /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|ATTACH|DETACH|PRAGMA|VACUUM|REPLACE)\b/i;
+
 async function runTool(name: string, input: any): Promise<unknown> {
+  if (name === "run_query") {
+    const sql = String(input?.sql ?? "").trim();
+    if (!SAFE_QUERY.test(sql)) {
+      return { error: "Only SELECT / WITH / EXPLAIN queries allowed." };
+    }
+    if (FORBIDDEN.test(sql)) {
+      return { error: "Query contains a write/DDL keyword; rejected." };
+    }
+    // Append LIMIT 200 if missing
+    const sqlWithLimit = /\blimit\b/i.test(sql) ? sql : `${sql.replace(/;?\s*$/, "")} LIMIT 200`;
+    try {
+      const rows = await all(sqlWithLimit);
+      return { row_count: rows.length, rows };
+    } catch (e: any) {
+      return { error: e.message };
+    }
+  }
+
   if (name === "get_kpis") {
     return await one(
       `SELECT
         (SELECT COUNT(*) FROM companies) AS companies,
         (SELECT COUNT(*) FROM companies WHERE is_customer = 1) AS existing_customers,
+        (SELECT COUNT(*) FROM companies WHERE linkedin_url IS NOT NULL AND linkedin_url != '') AS companies_with_linkedin,
         (SELECT COUNT(*) FROM contacts) AS contacts,
+        (SELECT COUNT(*) FROM contacts WHERE linkedin_url IS NOT NULL AND linkedin_url != '') AS contacts_with_linkedin,
+        (SELECT COUNT(*) FROM contacts WHERE email IS NOT NULL AND email != '') AS contacts_with_email,
         (SELECT COUNT(*) FROM contacts WHERE is_welfare=1) AS welfare_contacts,
         (SELECT COUNT(*) FROM outreach_attempts WHERE state='sent') AS touches_sent,
         (SELECT COUNT(*) FROM outreach_attempts WHERE state='drafted') AS drafts_waiting,
@@ -72,56 +105,23 @@ async function runTool(name: string, input: any): Promise<unknown> {
         (SELECT COUNT(*) FROM kb_objections) AS objections_kb,
         (SELECT COUNT(*) FROM deals WHERE stage='won') AS deals_won,
         (SELECT COALESCE(SUM(units),0) FROM deals WHERE stage='won') AS units_won,
-        (SELECT COALESCE(SUM(total_ils),0) FROM deals WHERE stage='won') AS revenue_won_ils`
+        (SELECT COALESCE(SUM(total_ils),0) FROM deals WHERE stage='won') AS revenue_won_ils,
+        (SELECT COUNT(*) FROM existing_customers) AS historical_purchases`
     );
   }
-  if (name === "search_companies") {
-    const like = `%${input.q}%`;
-    const aliveSql = input.alive_only ? `AND business_alive='yes'` : ``;
-    return await all(
-      `SELECT id, name_he, category, location, emp_count, business_alive, linkedin_url, is_customer
-       FROM companies
-       WHERE (name_he LIKE ? OR description LIKE ? OR category LIKE ?) ${aliveSql}
-       LIMIT 20`,
-      [like, like, like]
+
+  if (name === "list_tables") {
+    const tables = await all<{ name: string }>(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
     );
+    const schemas: Record<string, any[]> = {};
+    for (const t of tables) {
+      const cols = await all(`PRAGMA table_info("${t.name}")`);
+      schemas[t.name] = cols.map((c: any) => ({ name: c.name, type: c.type, notnull: c.notnull }));
+    }
+    return schemas;
   }
-  if (name === "search_contacts") {
-    const like = `%${input.q}%`;
-    const filters: string[] = [];
-    const params: any[] = [like, like, like];
-    if (input.welfare_only) filters.push("c.is_welfare=1");
-    if (input.status) { filters.push("c.status=?"); params.push(input.status); }
-    const whereExtra = filters.length ? `AND ${filters.join(" AND ")}` : ``;
-    return await all(
-      `SELECT c.id, c.full_name, c.title, c.role_tag, c.is_welfare, c.status, co.name_he AS company
-       FROM contacts c JOIN companies co ON co.id=c.company_id
-       WHERE (c.full_name LIKE ? OR c.title LIKE ? OR co.name_he LIKE ?) ${whereExtra}
-       LIMIT 20`,
-      params
-    );
-  }
-  if (name === "top_objections") {
-    const limit = Math.min(input?.limit ?? 10, 30);
-    return await all(
-      `SELECT id, objection_text, category, seen_count, is_approved, tulip_response
-       FROM kb_objections ORDER BY seen_count DESC LIMIT ?`,
-      [limit]
-    );
-  }
-  if (name === "suggest_outreach_batch") {
-    const n = Math.min(input?.n ?? 5, 20);
-    return await all(
-      `SELECT c.id, c.full_name, c.title, c.role_tag, co.name_he AS company, c.status
-       FROM contacts c JOIN companies co ON co.id=c.company_id
-       WHERE c.status IN ('new', 'queued')
-       ORDER BY c.is_welfare DESC,
-         CASE c.role_tag WHEN 'welfare_EE' THEN 0 WHEN 'CHRO' THEN 1
-                         WHEN 'VP_HR' THEN 2 WHEN 'Head_HR' THEN 3 ELSE 9 END
-       LIMIT ?`,
-      [n]
-    );
-  }
+
   return { error: `unknown tool: ${name}` };
 }
 
