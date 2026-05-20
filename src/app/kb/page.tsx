@@ -36,7 +36,7 @@ export default async function KBPage({ searchParams }: { searchParams: Promise<{
         </p>
       </header>
 
-      <form className="card p-4 mb-6 grid md:grid-cols-3 gap-3">
+      <form method="get" action="/kb" className="card p-4 mb-6 grid md:grid-cols-3 gap-3">
         <input name="q" defaultValue={q} placeholder="חיפוש בהתנגדויות / תשובות" className="input md:col-span-2" />
         <select name="cat" defaultValue={cat} className="input">
           <option value="">קטגוריה — הכל</option>

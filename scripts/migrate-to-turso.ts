@@ -30,18 +30,18 @@ async function main() {
 
   console.log("→ Applying schema to remote...");
   const schemaSql = fs.readFileSync(path.resolve("src/lib/schema.sql"), "utf8");
-  const stmts = schemaSql
-    .split(/;\s*\n/)
-    .map((s) => s.trim())
-    .filter((s) => s && !s.startsWith("--"));
+  // Strip line-comments first, then split on `;`
+  const noComments = schemaSql
+    .split("\n")
+    .map((l) => { const i = l.indexOf("--"); return i >= 0 ? l.slice(0, i) : l; })
+    .join("\n");
+  const stmts = noComments.split(";").map((s) => s.trim()).filter((s) => s.length > 0);
   for (const s of stmts) {
+    if (s.toUpperCase().startsWith("PRAGMA")) continue;
     try {
       await remote.execute(s);
     } catch (e: any) {
-      // PRAGMA statements aren't supported on remote — skip them quietly
-      if (!s.toUpperCase().startsWith("PRAGMA")) {
-        console.warn(`  ⚠️ skipping: ${s.slice(0, 60)}... (${e.message})`);
-      }
+      console.warn(`  ⚠️ ${s.slice(0, 60).replace(/\n/g, " ")}... → ${e.message}`);
     }
   }
   console.log("✅ schema applied");

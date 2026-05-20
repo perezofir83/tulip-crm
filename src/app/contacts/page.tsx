@@ -55,7 +55,7 @@ export default async function ContactsPage({
         </div>
       </header>
 
-      <form className="card p-4 mb-6 grid md:grid-cols-4 gap-3">
+      <form method="get" action="/contacts" className="card p-4 mb-6 grid md:grid-cols-4 gap-3">
         <input name="q" defaultValue={q} placeholder="חיפוש לפי שם / תפקיד / חברה" className="input md:col-span-2" />
         <select name="tag" defaultValue={tag} className="input">
           <option value="">תיוג — הכל</option>

@@ -108,7 +108,7 @@ export default async function CompaniesPage({
         <Link href="/companies/new" className="btn-ghost text-sm">+ הוספה ידנית</Link>
       </header>
 
-      <form className="card p-4 mb-6 grid md:grid-cols-4 gap-3">
+      <form method="get" action="/companies" className="card p-4 mb-6 grid md:grid-cols-4 gap-3">
         <input
           name="q"
           defaultValue={q}
