@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;700;900&display=swap");
+
+html { direction: rtl; }
+body {
+  background-color: theme(colors.tulip.paper);
+  color: theme(colors.tulip.ink);
+  font-family: theme(fontFamily.sans);
+  font-feature-settings: "ss01", "kern";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Serif headlines — matches the TULIP wordmark on packaging */
+h1, h2, .display {
+  font-family: theme(fontFamily.serif);
+  letter-spacing: -0.005em;
+  font-weight: 500;
+  color: theme(colors.tulip.ink);
+}
+
+/* "WINERY"-style spaced uppercase used for subtitles */
+.brandmark {
+  font-family: theme(fontFamily.serif);
+  letter-spacing: theme(letterSpacing.brand);
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+@layer components {
+  /* surface primitives */
+  .card {
+    @apply bg-white border border-tulip-line rounded-sm
+           shadow-[0_1px_2px_rgba(35,31,32,0.03)];
+  }
+
+  /* buttons — flat, no icons; the wine red is the *only* color highlight */
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-sm
+           text-sm font-medium transition-colors border border-transparent
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-tulip-ink text-white hover:bg-black;
+  }
+  .btn-wine {
+    @apply btn bg-tulip-wine text-white hover:bg-tulip-burgundy;
+  }
+  .btn-ghost {
+    @apply btn text-tulip-ink border-tulip-line hover:bg-tulip-surface;
+  }
+  .btn-link {
+    @apply text-tulip-ink hover:text-tulip-wine underline underline-offset-4 decoration-tulip-line hover:decoration-tulip-wine transition-colors;
+  }
+
+  .input {
+    @apply w-full px-3 py-2 bg-white border border-tulip-line rounded-sm
+           text-tulip-ink placeholder-tulip-quiet outline-none
+           focus:border-tulip-ink focus:ring-1 focus:ring-tulip-ink/10;
+  }
+  .label { @apply block text-xs uppercase tracking-wider text-tulip-muted mb-1.5; }
+
+  /* chips — monochrome by default; wine/forest only for status */
+  .chip {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-sm
+           bg-tulip-surface text-tulip-ink border border-tulip-line;
+  }
+  .chip-wine    { @apply chip bg-tulip-wine/10 border-tulip-wine/25 text-tulip-wine; }
+  .chip-forest  { @apply chip bg-tulip-success/10 border-tulip-success/25 text-tulip-success; }
+  .chip-muted   { @apply chip text-tulip-muted; }
+
+  /* dashboard primitives */
+  .stat-num { @apply text-4xl font-medium text-tulip-ink font-serif tracking-tight; }
+  .stat-lbl { @apply text-[10px] uppercase tracking-[0.18em] text-tulip-muted; }
+  .divider  { @apply border-t border-tulip-line; }
+  .table-head { @apply text-[10px] uppercase tracking-[0.14em] text-tulip-muted text-right font-medium; }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "tulip-crm",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "next lint",
+    "db:init": "tsx scripts/init-db.ts",
+    "db:import": "tsx scripts/import-from-sheet.ts",
+    "db:backup": "tsx scripts/backup.ts",
+    "db:migrate-to-turso": "tsx scripts/migrate-to-turso.ts",
+    "agent:daily": "tsx scripts/agent-daily.ts"
+  },
+  "dependencies": {
+    "next": "15.5.18",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "@libsql/client": "0.14.0",
+    "@anthropic-ai/sdk": "0.97.1",
+    "iron-session": "8.0.4",
+    "bcryptjs": "3.0.3",
+    "zod": "3.25.76",
+    "date-fns": "4.1.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "3.0.0",
+    "@types/node": "22.7.4",
+    "@types/react": "19.0.1",
+    "@types/react-dom": "19.0.1",
+    "autoprefixer": "10.4.20",
+    "postcss": "8.5.10",
+    "tailwindcss": "3.4.14",
+    "tsx": "4.19.2",
+    "typescript": "5.6.3"
+  },
+  "packageManager": "pnpm@9.12.0",
+  "pnpm": {
+    "overrides": {
+      "postcss": ">=8.5.10"
+    }
+  }
+}
