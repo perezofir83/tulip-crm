@@ -18,17 +18,64 @@ export default async function OutreachQueue() {
      ORDER BY c.is_welfare DESC, a.created_at DESC`
   );
 
+  // Pending LinkedIn connects awaiting acceptance — checked automatically by cron
+  const pendingConnects = await all<any>(
+    `SELECT a.id, a.sent_at, a.sent_by,
+            c.id AS contact_id, c.full_name, c.title, c.is_welfare, c.is_decision_maker,
+            c.linkedin_url,
+            co.name_he AS company, co.is_customer,
+            CAST(julianday('now') - julianday(a.sent_at) AS INTEGER) AS days_since
+     FROM outreach_attempts a
+     JOIN contacts c ON c.id = a.contact_id
+     JOIN companies co ON co.id = c.company_id
+     WHERE a.channel = 'linkedin_connect_no_message'
+       AND a.state = 'sent'
+     ORDER BY a.sent_at DESC`
+  );
+
   return (
     <Shell>
       <header className="flex items-end justify-between mb-6">
         <div>
-          <h1 className="display text-3xl">תור פניות לאישור</h1>
-          <p className="text-tulip-muted mt-1">{drafts.length} דרפטים ממתינים</p>
+          <h1 className="display text-3xl">תור פניות</h1>
+          <p className="text-tulip-muted mt-1">
+            {pendingConnects.length} חיבורים ממתינים לאישור · {drafts.length} דרפטים לאישור
+          </p>
         </div>
         <div className="text-xs text-tulip-muted text-end max-w-xs">
-          הסוכן מכין דרפטים. את/ה קורא/ת, מאשר/ת ושולח/ת.
+          הסוכן בודק אוטומטית 3 פעמים ביום ומעדכן. את/ה רק קורא/ת ומאשר/ת.
         </div>
       </header>
+
+      {pendingConnects.length > 0 && (
+        <section className="mb-10">
+          <h2 className="font-medium text-tulip-ink mb-3">📨 חיבורי LinkedIn ממתינים לאישור</h2>
+          <div className="card divide-y divide-tulip-line">
+            {pendingConnects.map((p) => (
+              <div key={p.id} className="p-4 flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <Link href={`/contacts/${p.contact_id}`} className="font-medium hover:text-tulip-wine">
+                      {p.is_welfare ? "⭐ " : ""}{p.is_decision_maker ? "👔 " : ""}{p.full_name}
+                    </Link>
+                    <span className="text-tulip-muted text-sm">· {p.company} {p.is_customer ? "◆" : ""}</span>
+                  </div>
+                  {p.title && <div className="text-xs text-tulip-muted truncate">{p.title}</div>}
+                </div>
+                <div className="text-xs text-tulip-muted text-end shrink-0">
+                  נשלח לפני {p.days_since === 0 ? "פחות מיממה" : `${p.days_since} ${p.days_since === 1 ? "יום" : "ימים"}`}
+                  {p.sent_by && <div>על ידי {p.sent_by}</div>}
+                </div>
+                {p.linkedin_url && (
+                  <a href={p.linkedin_url} target="_blank" rel="noreferrer" className="btn-ghost text-sm shrink-0">פתח</a>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <h2 className="font-medium text-tulip-ink mb-3">✍️ דרפטים לאישור ושליחה</h2>
 
       {drafts.length === 0 ? (
         <div className="card p-12 text-center text-tulip-muted">
