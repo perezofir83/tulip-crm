@@ -28,11 +28,11 @@ const remoteDb = createClient({
   authToken: process.env.TURSO_AUTH_TOKEN!,
 });
 
-// First-message template — Lotan's EXACT verbatim template (corrected 2026-05-26).
-// `{firstName}` placeholder gets replaced per contact.
-// DO NOT add clever job-title personalization. "כייף להיות מחוברות פה" is the warmth.
+// First-message templates — Lotan's verbatim style.
+// v1 = direct/urgent (use when accept came within 0-3 days of connect)
+// v2 = open/lighter (use when accept came after 3+ days)
 // See: ~/.claude/projects/.../memory/feedback_lotan_actual_voice.md
-const FIRST_MESSAGE = (firstName: string) => `היי ${firstName}, מה נשמע?
+const FIRST_MESSAGE_V1 = (firstName: string) => `היי ${firstName}, מה נשמע?
 
 כייף להיות מחוברות פה.
 מקווה שהשגרה הזמנית עושה טוב!
@@ -45,8 +45,27 @@ const FIRST_MESSAGE = (firstName: string) => `היי ${firstName}, מה נשמע
 
 
 לוטן
-מנהל שיווק וייצוא
+מנהלת השיווק והיצוא
 יקב טוליפ`;
+
+const FIRST_MESSAGE_V2_OPEN = (firstName: string) => `היי ${firstName}, מה נשמע?
+
+כייף להיות מחוברות פה.
+מקווה שהשגרה הזמנית עושה טוב!
+
+אני לוטן מיקב טוליפ. אנחנו עובדים עם הרבה צוותים בארץ סביב חגים — מארזים קהילתיים שמשלבים יינות זוכי פרסים ומוצרים מקומיים, והכל מורכב על ידי חברי כפר תקווה, שותפים שלנו ברמה היומיומית ביקב.
+
+אם בנקודה מסוימת זה רלוונטי לצוות שלכם, ממש אשמח לעמוד לרשותך.
+
+
+לוטן
+מנהלת השיווק והיצוא
+יקב טוליפ`;
+
+// Choose template based on how long the invite was pending before acceptance
+function FIRST_MESSAGE(firstName: string, daysPending: number): string {
+  return daysPending > 3 ? FIRST_MESSAGE_V2_OPEN(firstName) : FIRST_MESSAGE_V1(firstName);
+}
 
 function firstNameOf(fullName: string): string {
   return fullName.split(/\s+/)[0];
@@ -61,7 +80,7 @@ async function main() {
   const accepted: { contact_id: number; full_name: string; company: string }[] = JSON.parse(fs.readFileSync(inputPath, "utf8"));
   console.log(`Newly accepted to draft for: ${accepted.length}`);
 
-  let drafted = 0, skipped = 0;
+  let drafted = 0, skipped = 0, v1Count = 0, v2Count = 0;
   for (const c of accepted) {
     // Skip if a step-2 linkedin_message already exists
     const existing = await remoteDb.execute({
@@ -78,11 +97,22 @@ async function main() {
       continue;
     }
 
-    const body = FIRST_MESSAGE(firstNameOf(c.full_name));
+    // How long was the invite pending? Pick v1 (direct) if ≤3 days, v2 (open) if >3.
+    const inv = await remoteDb.execute({
+      sql: `SELECT CAST(julianday('now') - julianday(sent_at) AS INTEGER) AS days
+            FROM outreach_attempts
+            WHERE contact_id = ? AND channel = 'linkedin_connect_no_message'
+            ORDER BY sent_at DESC LIMIT 1`,
+      args: [c.contact_id],
+    });
+    const daysPending = (inv.rows[0] as any)?.days ?? 0;
+    const body = FIRST_MESSAGE(firstNameOf(c.full_name), daysPending);
+    const templateUsed = daysPending > 3 ? 'v2_open' : 'v1_standard';
+    if (daysPending > 3) v2Count++; else v1Count++;
     const sql = `INSERT INTO outreach_attempts
       (contact_id, channel, step_number, subject, body, state, drafted_by, notes, created_at, updated_at)
-      VALUES (?, 'linkedin_message', 2, NULL, ?, 'drafted', 'agent_auto', 'Auto-drafted after invite acceptance', datetime('now'), datetime('now'))`;
-    const args = [c.contact_id, body];
+      VALUES (?, 'linkedin_message', 2, NULL, ?, 'drafted', ?, ?, datetime('now'), datetime('now'))`;
+    const args = [c.contact_id, body, `agent_auto_${templateUsed}`, `Auto-drafted (${templateUsed}, ${daysPending}d pending) after invite acceptance`];
     await remoteDb.execute({ sql, args });
     if (localDb) await localDb.execute({ sql, args }).catch(() => {});
 
@@ -103,7 +133,7 @@ async function main() {
   }
 
   console.log(`\n=== Summary ===`);
-  console.log(`  ✅ Drafts created: ${drafted}`);
+  console.log(`  ✅ Drafts created: ${drafted} (v1=${v1Count}, v2_open=${v2Count})`);
   console.log(`  ⚠️  Skipped (exists): ${skipped}`);
   console.log(`  → User reviews at https://tulip-crm-app.vercel.app/outreach`);
 }
