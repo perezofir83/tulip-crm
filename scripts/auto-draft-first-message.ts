@@ -28,21 +28,24 @@ const remoteDb = createClient({
   authToken: process.env.TURSO_AUTH_TOKEN!,
 });
 
-// First-message template — Lotan's voice, Pesach story, Kfar Tikva moat.
+// First-message template — Lotan's EXACT verbatim template (corrected 2026-05-26).
 // `{firstName}` placeholder gets replaced per contact.
+// DO NOT add clever job-title personalization. "כייף להיות מחוברות פה" is the warmth.
+// See: ~/.claude/projects/.../memory/feedback_lotan_actual_voice.md
 const FIRST_MESSAGE = (firstName: string) => `היי ${firstName}, מה נשמע?
 
-אני לוטן מיקב טוליפ. תודה רבה על החיבור :)
-
+כייף להיות מחוברות פה.
 מקווה שהשגרה הזמנית עושה טוב!
 
-בפסח האחרון עבדנו עם מעל ל-600 חברות בארץ, ולמדנו שכשהשגרה לא יציבה — הרבה צוותי רווחה מוצאים את עצמם לחוצים לרגע האחרון עם מתנות לחג. כלקח מפסח, החלטנו להקדים את השיח על תשרי.
+בפסח האחרון עבדנו עם מעל ל-600 חברות בארץ, ולמדנו שכשהשגרה לא יציבה,  הרבה צוותי ניהול כוח אדם מוצאים את עצמם לחוצים לרגע האחרון עם מתנות לחג. כלקח מפסח, החלטנו להקדים את השיח על ראש השנה.
 
-המארזים הקהילתיים שלנו השנה משלבים יינות זוכי פרסים לצד מוצרים מקומיים, והכל מורכב על ידי חברי כפר תקווה — שותפים שלנו במלוא העונות.
+המארזים הקהילתיים שלנו השנה משלבים יינות זוכי פרסים לצד מוצרים מקומיים, והכל מורכב על ידי חברי כפר תקווה,  שותפים שלנו, ברמה היומיומית ביקב ובמיוחד בהכנת מארזים.
 
-אשמח לשלוח לך קטלוג. תרשמי שזה זמן טוב — ואני סוגרת :)
+אשמח לשלוח לך קטלוג.
+
 
 לוטן
+מנהל שיווק וייצוא
 יקב טוליפ`;
 
 function firstNameOf(fullName: string): string {
