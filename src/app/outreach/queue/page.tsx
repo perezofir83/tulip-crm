@@ -51,17 +51,17 @@ export default async function OutreachQueue() {
 
   // ✅ Recently sent (informational — what you sent today)
   const recentlySent = await all<any>(
-    `SELECT a.id, a.sent_at, a.body,
+    `SELECT a.id, a.sent_at, a.body, a.channel,
             c.id AS contact_id, c.full_name, c.is_welfare,
             co.name_he AS company
      FROM outreach_attempts a
      JOIN contacts c ON c.id = a.contact_id
      JOIN companies co ON co.id = c.company_id
-     WHERE a.channel = 'linkedin_message'
+     WHERE a.channel IN ('linkedin_message', 'linkedin_connect_note', 'linkedin_dm')
        AND a.state = 'sent'
-       AND a.sent_at > datetime('now', '-2 days')
+       AND a.sent_at > datetime('now', '-3 days')
      ORDER BY a.sent_at DESC
-     LIMIT 20`
+     LIMIT 40`
   );
 
   return (
@@ -207,13 +207,16 @@ export default async function OutreachQueue() {
           <div className="card divide-y divide-tulip-line opacity-80">
             {recentlySent.map((s) => (
               <div key={s.id} className="p-3 flex items-center justify-between gap-3 text-sm">
-                <div>
-                  <Link href={`/contacts/${s.contact_id}`} className="hover:text-tulip-wine">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="chip-forest shrink-0">
+                    {s.channel === "linkedin_connect_note" ? "הזמנה+פתק" : s.channel === "linkedin_message" ? "הודעה" : s.channel}
+                  </span>
+                  <Link href={`/contacts/${s.contact_id}`} className="hover:text-tulip-wine truncate">
                     {s.is_welfare ? "⭐ " : ""}{s.full_name}
                   </Link>
-                  <span className="text-tulip-muted text-xs"> · {s.company}</span>
+                  <span className="text-tulip-muted text-xs truncate"> · {s.company}</span>
                 </div>
-                <span className="text-xs text-tulip-muted">{s.sent_at}</span>
+                <span className="text-xs text-tulip-muted shrink-0">{s.sent_at}</span>
               </div>
             ))}
           </div>
@@ -240,6 +243,7 @@ async function markSent(formData: FormData) {
     a.channel === "linkedin_invite" ? "linkedin_invited" :
     a.channel === "linkedin_dm"     ? "conversation" :
     a.channel === "linkedin_message" ? "conversation_started" :
+    a.channel === "linkedin_connect_note" ? "contacted" :
     a.channel === "email" && a.step_number === 1 ? "email_sent" :
     a.channel === "email"           ? `followup_${a.step_number - 1}` :
     "queued";
