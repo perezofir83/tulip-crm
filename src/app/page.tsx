@@ -32,6 +32,26 @@ export default async function DashboardPage() {
   const replyRate =
     stats.total_sent > 0 ? (stats.replied_contacts / stats.total_sent) * 100 : 0;
 
+  // Activity in the last 78 days (campaign window)
+  const activity = (await one<any>(
+    `SELECT
+      (SELECT COUNT(*) FROM outreach_attempts
+        WHERE channel = 'linkedin_connect_no_message'
+          AND state IN ('sent','accepted')
+          AND COALESCE(sent_at, created_at) >= datetime('now','-78 days')) AS invited,
+      (SELECT COUNT(*) FROM outreach_attempts
+        WHERE channel = 'linkedin_connect_no_message'
+          AND state = 'accepted'
+          AND COALESCE(updated_at, sent_at, created_at) >= datetime('now','-78 days')) AS accepted,
+      (SELECT COUNT(*) FROM outreach_attempts
+        WHERE channel IN ('linkedin_message','linkedin_dm')
+          AND state IN ('sent','replied')
+          AND COALESCE(sent_at, created_at) >= datetime('now','-78 days')) AS messages,
+      (SELECT COUNT(*) FROM contacts
+        WHERE (notes LIKE '%catalog%' OR notes LIKE '%קטלוג%')) AS catalog`
+  )) || ({} as any);
+  const acceptRate = activity.invited > 0 ? (activity.accepted / activity.invited) * 100 : 0;
+
   const recentDrafts = await all<any>(
     `SELECT a.id, a.channel, a.body, a.created_at,
             c.full_name, c.id AS contact_id, co.name_he AS company
@@ -65,6 +85,17 @@ export default async function DashboardPage() {
         <Kpi label="הכנסה מצטברת" value={ils(stats.revenue_won || 0)} sub="מתחילת הקמפיין" />
         <Kpi label="התנגדויות במאגר" value={num(stats.kb_entries)} sub="לומדות בכל פנייה" />
         <Kpi label="מענים בהמתנה" value={num(stats.unread_replies)} sub="דורש התייחסות" highlight={stats.unread_replies > 0} />
+      </section>
+
+      {/* Activity in last 78 days */}
+      <section className="mb-10">
+        <h2 className="text-lg font-medium text-tulip-forest mb-3">פעילות ב-78 הימים האחרונים</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Kpi label="הוזמנו ללינקדאין" value={num(activity.invited || 0)} sub="בקשות חיבור שנשלחו" />
+          <Kpi label="אישרו הזמנה" value={num(activity.accepted || 0)} sub={`${acceptRate.toFixed(0)}% מהמוזמנים`} />
+          <Kpi label="נשלחו הודעות" value={num(activity.messages || 0)} sub="הודעת פתיחה למחוברים" />
+          <Kpi label="נשלח קטלוג" value={num(activity.catalog || 0)} sub="לידים חמים" highlight={(activity.catalog || 0) > 0} />
+        </div>
       </section>
 
       <div className="grid md:grid-cols-2 gap-6">
