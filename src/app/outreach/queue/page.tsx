@@ -1,5 +1,6 @@
 import Shell from "@/components/Shell";
 import Link from "next/link";
+import { revalidatePath } from "next/cache";
 import { one, all, run, audit } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 
@@ -248,6 +249,8 @@ async function markSent(formData: FormData) {
     [next, a.contact_id]
   );
   await audit(`user:${session.email}`, "outreach_attempts", id, "mark_sent", a, { state: "sent" });
+  revalidatePath("/outreach/queue");
+  revalidatePath("/outreach");
 }
 
 async function discardDraft(formData: FormData) {
@@ -258,4 +261,6 @@ async function discardDraft(formData: FormData) {
   const a = await one("SELECT * FROM outreach_attempts WHERE id = ?", [id]);
   await run("UPDATE outreach_attempts SET state = 'failed', notes = 'discarded by user' WHERE id = ?", [id]);
   await audit(`user:${session.email}`, "outreach_attempts", id, "discard", a, null);
+  revalidatePath("/outreach/queue");
+  revalidatePath("/outreach");
 }
