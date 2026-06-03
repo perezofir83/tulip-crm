@@ -22,7 +22,7 @@ export default async function DashboardPage() {
       (SELECT COUNT(*) FROM outreach_attempts WHERE state = 'drafted') AS pending_drafts,
       (SELECT COUNT(*) FROM outreach_attempts WHERE state = 'sent') AS total_sent,
       (SELECT COUNT(DISTINCT contact_id) FROM replies) AS replied_contacts,
-      (SELECT COUNT(*) FROM replies WHERE requires_attention = 1) AS unread_replies,
+      (SELECT COUNT(*) FROM replies WHERE requires_attention = 1 AND attended_at IS NULL) AS unread_replies,
       (SELECT COUNT(*) FROM deals WHERE stage = 'won') AS deals_won,
       (SELECT COALESCE(SUM(units),0) FROM deals WHERE stage = 'won') AS units_won,
       (SELECT COALESCE(SUM(total_ils),0) FROM deals WHERE stage = 'won') AS revenue_won,
