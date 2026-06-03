@@ -38,15 +38,15 @@ export default async function DashboardPage() {
       (SELECT COUNT(*) FROM outreach_attempts
         WHERE channel = 'linkedin_connect_no_message'
           AND state IN ('sent','accepted')
-          AND COALESCE(sent_at, created_at) >= datetime('now','-78 days')) AS invited,
+          AND COALESCE(sent_at, created_at) >= datetime('now','-7 days')) AS invited,
       (SELECT COUNT(*) FROM outreach_attempts
         WHERE channel = 'linkedin_connect_no_message'
           AND state = 'accepted'
-          AND COALESCE(updated_at, sent_at, created_at) >= datetime('now','-78 days')) AS accepted,
+          AND COALESCE(updated_at, sent_at, created_at) >= datetime('now','-7 days')) AS accepted,
       (SELECT COUNT(*) FROM outreach_attempts
         WHERE channel IN ('linkedin_message','linkedin_dm')
           AND state IN ('sent','replied')
-          AND COALESCE(sent_at, created_at) >= datetime('now','-78 days')) AS messages,
+          AND COALESCE(sent_at, created_at) >= datetime('now','-7 days')) AS messages,
       (SELECT COUNT(*) FROM contacts
         WHERE (notes LIKE '%catalog%' OR notes LIKE '%קטלוג%')) AS catalog`
   )) || ({} as any);
@@ -87,9 +87,9 @@ export default async function DashboardPage() {
         <Kpi label="מענים בהמתנה" value={num(stats.unread_replies)} sub="דורש התייחסות" highlight={stats.unread_replies > 0} />
       </section>
 
-      {/* Activity in last 78 days */}
+      {/* Activity in last 7 days */}
       <section className="mb-10">
-        <h2 className="text-lg font-medium text-tulip-forest mb-3">פעילות ב-78 הימים האחרונים</h2>
+        <h2 className="text-lg font-medium text-tulip-forest mb-3">פעילות ב-7 הימים האחרונים</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Kpi label="הוזמנו ללינקדאין" value={num(activity.invited || 0)} sub="בקשות חיבור שנשלחו" />
           <Kpi label="אישרו הזמנה" value={num(activity.accepted || 0)} sub={`${acceptRate.toFixed(0)}% מהמוזמנים`} />
