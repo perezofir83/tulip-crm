@@ -32,21 +32,20 @@ export default async function DashboardPage() {
   const replyRate =
     stats.total_sent > 0 ? (stats.replied_contacts / stats.total_sent) * 100 : 0;
 
-  // Activity in the last 78 days (campaign window)
+  // Cumulative campaign funnel (monotonic: invited >= accepted >= messaged >= catalog).
+  // NOT time-windowed per stage — each stage happens on a different day, so windowing
+  // independently would break the funnel (e.g. messaging someone who accepted >7d ago).
   const activity = (await one<any>(
     `SELECT
-      (SELECT COUNT(*) FROM outreach_attempts
+      (SELECT COUNT(DISTINCT contact_id) FROM outreach_attempts
         WHERE channel = 'linkedin_connect_no_message'
-          AND state IN ('sent','accepted')
-          AND COALESCE(sent_at, created_at) >= datetime('now','-7 days')) AS invited,
-      (SELECT COUNT(*) FROM outreach_attempts
+          AND state IN ('sent','accepted')) AS invited,
+      (SELECT COUNT(DISTINCT contact_id) FROM outreach_attempts
         WHERE channel = 'linkedin_connect_no_message'
-          AND state = 'accepted'
-          AND COALESCE(updated_at, sent_at, created_at) >= datetime('now','-7 days')) AS accepted,
-      (SELECT COUNT(*) FROM outreach_attempts
+          AND state = 'accepted') AS accepted,
+      (SELECT COUNT(DISTINCT contact_id) FROM outreach_attempts
         WHERE channel IN ('linkedin_message','linkedin_dm')
-          AND state IN ('sent','replied')
-          AND COALESCE(sent_at, created_at) >= datetime('now','-7 days')) AS messages,
+          AND state IN ('sent','replied')) AS messages,
       (SELECT COUNT(*) FROM contacts
         WHERE (notes LIKE '%catalog%' OR notes LIKE '%קטלוג%')) AS catalog`
   )) || ({} as any);
@@ -87,9 +86,9 @@ export default async function DashboardPage() {
         <Kpi label="מענים בהמתנה" value={num(stats.unread_replies)} sub="דורש התייחסות" highlight={stats.unread_replies > 0} />
       </section>
 
-      {/* Activity in last 7 days */}
+      {/* Cumulative campaign funnel */}
       <section className="mb-10">
-        <h2 className="text-lg font-medium text-tulip-forest mb-3">פעילות ב-7 הימים האחרונים</h2>
+        <h2 className="text-lg font-medium text-tulip-forest mb-3">משפך הקמפיין (מצטבר)</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Kpi label="הוזמנו ללינקדאין" value={num(activity.invited || 0)} sub="בקשות חיבור שנשלחו" />
           <Kpi label="אישרו הזמנה" value={num(activity.accepted || 0)} sub={`${acceptRate.toFixed(0)}% מהמוזמנים`} />
