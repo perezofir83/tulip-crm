@@ -45,9 +45,15 @@ export default async function DashboardPage() {
           AND state = 'accepted') AS accepted,
       (SELECT COUNT(DISTINCT contact_id) FROM outreach_attempts
         WHERE channel IN ('linkedin_message','linkedin_dm')
+          AND step_number = 2
           AND state IN ('sent','replied')) AS messages,
+      (SELECT COUNT(DISTINCT contact_id) FROM outreach_attempts
+        WHERE channel IN ('linkedin_message','linkedin_dm','email')
+          AND step_number >= 3
+          AND state IN ('sent','replied')) AS followups,
       (SELECT COUNT(*) FROM contacts
-        WHERE (notes LIKE '%catalog%' OR notes LIKE '%קטלוג%')) AS catalog`
+        WHERE status = 'catalog_sent') AS catalog,
+      (SELECT COUNT(*) FROM contacts WHERE status = 'replied') AS replied_hot`
   )) || ({} as any);
   const acceptRate = activity.invited > 0 ? (activity.accepted / activity.invited) * 100 : 0;
 
@@ -89,11 +95,13 @@ export default async function DashboardPage() {
       {/* Cumulative campaign funnel */}
       <section className="mb-10">
         <h2 className="text-lg font-medium text-tulip-forest mb-3">משפך הקמפיין (מצטבר)</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <Kpi label="הוזמנו ללינקדאין" value={num(activity.invited || 0)} sub="בקשות חיבור שנשלחו" />
           <Kpi label="אישרו הזמנה" value={num(activity.accepted || 0)} sub={`${acceptRate.toFixed(0)}% מהמוזמנים`} />
-          <Kpi label="נשלחו הודעות" value={num(activity.messages || 0)} sub="הודעת פתיחה למחוברים" />
-          <Kpi label="נשלח קטלוג" value={num(activity.catalog || 0)} sub="לידים חמים" highlight={(activity.catalog || 0) > 0} />
+          <Kpi label="הודעת פתיחה (v3)" value={num(activity.messages || 0)} sub="שלב 2 — נשלח" />
+          <Kpi label="פולואפ (v4)" value={num(activity.followups || 0)} sub="שלב 3 — מעקב" highlight={(activity.followups || 0) > 0} />
+          <Kpi label="קטלוג נשלח" value={num(activity.catalog || 0)} sub="לידים חמים" highlight={(activity.catalog || 0) > 0} />
+          <Kpi label="ענו (חמים)" value={num(activity.replied_hot || 0)} sub="מחכים לפולואפ" highlight={(activity.replied_hot || 0) > 0} />
         </div>
       </section>
 
