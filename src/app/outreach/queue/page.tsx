@@ -135,7 +135,7 @@ export default async function OutreachQueue() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="chip">{d.channel}</span>
-                    <span className="chip-muted">פנייה {d.step_number}</span>
+                    <span className="chip-muted">{d.channel === "linkedin_message" ? "פנייה 1" : d.step_number >= 3 ? "פנייה 2" : `פנייה ${d.step_number}`}</span>
                   </div>
                 </header>
 
@@ -240,10 +240,11 @@ async function markSent(formData: FormData) {
     [`user:${session.email}`, id]
   );
   const next =
-    a.channel === "linkedin_invite" ? "linkedin_invited" :
-    a.channel === "linkedin_dm"     ? "conversation" :
-    a.channel === "linkedin_message" ? "conversation_started" :
-    a.channel === "linkedin_connect_note" ? "contacted" :
+    a.channel === "linkedin_invite" ? "הוזמנו" :
+    a.channel === "linkedin_connect_no_message" ? "הוזמנו" :
+    a.channel === "linkedin_dm"     ? "replied" :
+    a.channel === "linkedin_message" ? (a.step_number >= 3 ? "פנייה 2" : "פנייה 1") :
+    a.channel === "linkedin_connect_note" ? "הוזמנו" :
     a.channel === "email" && a.step_number === 1 ? "email_sent" :
     a.channel === "email"           ? `followup_${a.step_number - 1}` :
     "queued";

@@ -32,30 +32,22 @@ export default async function DashboardPage() {
   const replyRate =
     stats.total_sent > 0 ? (stats.replied_contacts / stats.total_sent) * 100 : 0;
 
-  // Cumulative campaign funnel (monotonic: invited >= accepted >= messaged >= catalog).
-  // NOT time-windowed per stage — each stage happens on a different day, so windowing
-  // independently would break the funnel (e.g. messaging someone who accepted >7d ago).
+  // Campaign funnel — driven by the Hebrew contact-status scheme (הוזמנו → פנייה 1 → פנייה 2 → ענו).
+  // Each contact sits in exactly one status; these are current-state counts, not time-windowed.
   const activity = (await one<any>(
     `SELECT
+      (SELECT COUNT(*) FROM contacts WHERE status = 'הוזמנו') AS invited,
+      (SELECT COUNT(*) FROM contacts WHERE status = 'פנייה 1') AS msg1,
+      (SELECT COUNT(*) FROM contacts WHERE status = 'פנייה 2') AS catalog,
+      (SELECT COUNT(*) FROM contacts WHERE status = 'replied') AS replied_hot,
+      (SELECT COUNT(DISTINCT c.company_id)
+         FROM contacts c
+        WHERE c.status = 'פנייה 2'
+           OR c.id IN (SELECT contact_id FROM outreach_attempts
+                        WHERE step_number = 3 AND channel LIKE 'linkedin%')) AS catalog_companies,
       (SELECT COUNT(DISTINCT contact_id) FROM outreach_attempts
-        WHERE channel = 'linkedin_connect_no_message'
-          AND state IN ('sent','accepted')) AS invited,
-      (SELECT COUNT(DISTINCT contact_id) FROM outreach_attempts
-        WHERE channel = 'linkedin_connect_no_message'
-          AND state = 'accepted') AS accepted,
-      (SELECT COUNT(DISTINCT contact_id) FROM outreach_attempts
-        WHERE channel IN ('linkedin_message','linkedin_dm')
-          AND step_number = 2
-          AND state IN ('sent','replied')) AS messages,
-      (SELECT COUNT(DISTINCT contact_id) FROM outreach_attempts
-        WHERE channel IN ('linkedin_message','linkedin_dm','email')
-          AND step_number >= 3
-          AND state IN ('sent','replied')) AS followups,
-      (SELECT COUNT(*) FROM contacts
-        WHERE status = 'catalog_sent') AS catalog,
-      (SELECT COUNT(*) FROM contacts WHERE status = 'replied') AS replied_hot`
+        WHERE step_number = 3 AND channel LIKE 'linkedin%') AS catalog_contacts`
   )) || ({} as any);
-  const acceptRate = activity.invited > 0 ? (activity.accepted / activity.invited) * 100 : 0;
 
   const recentDrafts = await all<any>(
     `SELECT a.id, a.channel, a.body, a.created_at,
@@ -92,16 +84,16 @@ export default async function DashboardPage() {
         <Kpi label="מענים בהמתנה" value={num(stats.unread_replies)} sub="דורש התייחסות" highlight={stats.unread_replies > 0} />
       </section>
 
-      {/* Cumulative campaign funnel */}
+      {/* Campaign funnel */}
       <section className="mb-10">
-        <h2 className="text-lg font-medium text-tulip-forest mb-3">משפך הקמפיין (מצטבר)</h2>
+        <h2 className="text-lg font-medium text-tulip-forest mb-3">משפך הקמפיין</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <Kpi label="הוזמנו ללינקדאין" value={num(activity.invited || 0)} sub="בקשות חיבור שנשלחו" />
-          <Kpi label="אישרו הזמנה" value={num(activity.accepted || 0)} sub={`${acceptRate.toFixed(0)}% מהמוזמנים`} />
-          <Kpi label="הודעת פתיחה (v3)" value={num(activity.messages || 0)} sub="שלב 2 — נשלח" />
-          <Kpi label="פולואפ (v4)" value={num(activity.followups || 0)} sub="שלב 3 — מעקב" highlight={(activity.followups || 0) > 0} />
-          <Kpi label="קטלוג נשלח" value={num(activity.catalog || 0)} sub="לידים חמים" highlight={(activity.catalog || 0) > 0} />
-          <Kpi label="ענו (חמים)" value={num(activity.replied_hot || 0)} sub="מחכים לפולואפ" highlight={(activity.replied_hot || 0) > 0} />
+          <Kpi label="הוזמנו" value={num(activity.invited || 0)} sub="ממתינים לאישור / פנייה" />
+          <Kpi label="פנייה 1" value={num(activity.msg1 || 0)} sub="הודעת פתיחה נשלחה" />
+          <Kpi label="פנייה 2 (קטלוג)" value={num(activity.catalog || 0)} sub="קטלוג נשלח" highlight={(activity.catalog || 0) > 0} />
+          <Kpi label="ענו (חמים)" value={num(activity.replied_hot || 0)} sub="מחכים למעקב" highlight={(activity.replied_hot || 0) > 0} />
+          <Kpi label="חברות שקיבלו קטלוג" value={num(activity.catalog_companies || 0)} sub={`${num(activity.catalog_contacts || 0)} אנשי קשר`} highlight={(activity.catalog_companies || 0) > 0} />
+          <Kpi label="עסקאות סגורות" value={num(stats.deals_won)} sub={`${num(stats.units_won)} מארזים`} />
         </div>
       </section>
 
