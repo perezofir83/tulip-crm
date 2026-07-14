@@ -3,6 +3,7 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { one, all, run, audit } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import DraftActions from "./DraftActions";
 
 export const dynamic = "force-dynamic";
 
@@ -149,20 +150,14 @@ export default async function OutreachQueue() {
                 </p>
 
                 <footer className="mt-3 flex flex-wrap items-center gap-2">
-                  <form action={markSent}>
-                    <input type="hidden" name="attempt_id" value={d.id} />
-                    <button className="btn-primary text-sm">סימון כנשלח</button>
-                  </form>
-                  {d.linkedin_url && (
-                    <a href={d.linkedin_url} target="_blank" rel="noreferrer" className="btn-ghost text-sm">פתח LinkedIn של {d.full_name.split(" ")[0]}</a>
-                  )}
-                  {d.draft_url && (
-                    <a href={d.draft_url} target="_blank" rel="noreferrer" className="btn-ghost text-sm">פתח דרפט שהוכן</a>
-                  )}
-                  <form action={discardDraft} className="ms-auto">
-                    <input type="hidden" name="attempt_id" value={d.id} />
-                    <button className="btn-link text-sm text-tulip-muted hover:text-tulip-wine">ביטול דרפט</button>
-                  </form>
+                  <DraftActions
+                    attemptId={d.id}
+                    linkedinUrl={d.linkedin_url}
+                    draftUrl={d.draft_url}
+                    firstName={d.full_name.split(" ")[0]}
+                    markSent={markSent}
+                    discardDraft={discardDraft}
+                  />
                 </footer>
               </article>
             ))}
